@@ -12,7 +12,7 @@ WINDOW_HEIGHT :: 720
 Grid :: struct {
     rows : i32,
     cols : i32,
-    front_buffer : []i32
+    config : []i32
 }
 
 Rect :: struct {
@@ -47,11 +47,10 @@ main :: proc() {
     pause_icon := ray.LoadTexture("assets/pause.png"); defer ray.UnloadTexture(pause_icon)
     ray.SetTextureFilter(pause_icon, ray.TextureFilter.POINT)
 
-
-    grid := grid_create(512, 512); defer grid_destroy(grid)
-
     font := ray.GetFontDefault()
     ray.SetTextureFilter(font.texture, ray.TextureFilter.POINT)
+
+    grid := grid_create(512, 512); defer grid_destroy(grid)
 
     inv_temperature : f32 = 1.0
 
@@ -69,6 +68,8 @@ main :: proc() {
             app_state.is_paused = !app_state.is_paused
         }
 
+        // Update Logic
+
         if !app_state.is_paused {
             grid_update_metropolis(grid, inv_temperature) // T=2.269 is Critical temperature? hotter means more activity
         }
@@ -80,6 +81,8 @@ main :: proc() {
             h = app_state.window_height
         }            
 
+        // Rendering
+
         ray.BeginDrawing()
         ray.ClearBackground(ray.RAYWHITE)
         grid_draw(grid, grid_rect, 60)
@@ -90,27 +93,25 @@ main :: proc() {
 
         ray.DrawFPS(5, 5)
         ray.EndDrawing()
-        
     }
 }
 
 grid_create :: proc(c, r: i32) -> (grid: Grid) {
     using grid
-    rows = r
-    cols = c
+    rows, cols = r, c
     s: i32
-    front_buffer = make([]i32, r * c)
+    config = make([]i32, r * c)
     for i in 0..=cols-1 {
         for j in 0..=rows-1 {
             s = rand.choice([]i32{-1, 1})
-            front_buffer[i*rows + j] = s
+            config[i*rows + j] = s
         }
     }
     return grid
 }
 
 grid_destroy :: proc(grid: Grid) {
-    delete(grid.front_buffer)
+    delete(grid.config)
 }
 
 grid_draw :: proc(using grid: Grid, target_rect: Rect, padding: i32) {
@@ -129,30 +130,33 @@ grid_draw :: proc(using grid: Grid, target_rect: Rect, padding: i32) {
     ray.DrawRectangle(target_rect.x, target_rect.y, target_rect.w, target_rect.h, ray.RAYWHITE)
     for i in 0..=cols-1 {
         for j in 0..=rows-1 {
-            col = front_buffer[i*rows + j] > 0 ? ray.RED : ray.DARKBLUE
+            col = config[i*rows + j] > 0 ? ray.RED : ray.DARKBLUE
             ray.DrawRectangle(x_offset + cell_size*i, y_offset + cell_size*j, cell_size, cell_size, col)
         }
     }
 }
 
 grid_update_metropolis :: proc(grid: Grid, inv_temperature: f32) {
+    /*
+        A single update consists of performing N random spin-flips, where N is the number of spins in the system
+    */
     using grid
     p, q : i32
     i, j : i32
     spin, neighbour_sum, cost : i32
-    for _ in 1..=len(front_buffer)-1 {
+    for _ in 1..=len(config)-1 {
         p = i32(rand.float32() * f32(rows))
         q = i32(rand.float32() * f32(cols))  
         i = p + rows
         j = q + cols      
-        spin = front_buffer[(p%cols)*rows + (q%rows)]
-        neighbour_sum = front_buffer[(i%cols)*rows + (j-1)%rows] + front_buffer[(i%cols)*rows + (j+1)%rows] + front_buffer[((i-1)%cols)*rows + j%rows] + front_buffer[((i+1)%cols)*rows + j%rows]
+        spin = config[(p%cols) * rows + (q%rows)]
+        neighbour_sum = config[(i%cols) * rows + (j-1)%rows] + config[(i%cols) * rows + (j+1)%rows] + config[((i-1)%cols) * rows + j%rows] + config[((i+1)%cols) * rows + j%rows]
         cost = 2*spin*neighbour_sum
         if (cost < 0) {
-            front_buffer[(p%cols)*rows + (q%rows)] *= -1
+            config[(p%cols) * rows + (q%rows)] *= -1
         }
         else if rand.float32() < math.exp(f32(-cost)*inv_temperature){
-            front_buffer[(p%cols)*rows + (q%rows)] *= -1
+            config[(p%cols) * rows + (q%rows)] *= -1
         }
     }
 }
