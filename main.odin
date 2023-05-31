@@ -52,7 +52,7 @@ main :: proc() {
 
     grid := grid_create(512, 512); defer grid_destroy(grid)
 
-    inv_temperature : f32 = 1.0
+    inv_temperature : f32 = 0.4
 
     for app_state.is_running {
 
