@@ -33,8 +33,8 @@ AppState :: struct {
 
 main :: proc() {
 
-    n_cols : i32 = 256
-    n_rows : i32 = 128
+    n_cols : i32 = 512
+    n_rows : i32 = 512
 
     app_state : AppState = {
         is_running = true,
@@ -47,7 +47,7 @@ main :: proc() {
     ray.SetConfigFlags(ray_flags)
     ray.InitWindow(app_state.window_width, app_state.window_height, "Ising Model Visualiser")
     ray.SetWindowMinSize(600, 600)
-    ray.SetTargetFPS(30)
+    ray.SetTargetFPS(60)
 
     pause_icon := ray.LoadTexture("assets/pause.png"); defer ray.UnloadTexture(pause_icon)
     ray.SetTextureFilter(pause_icon, ray.TextureFilter.POINT)
@@ -57,7 +57,7 @@ main :: proc() {
 
     grid := grid_create(n_cols, n_rows); defer grid_destroy(grid)
 
-    inv_temperature : f32 = 1
+    inv_temperature : f32 = 0.4
 
     for app_state.is_running {
 
@@ -96,7 +96,7 @@ main :: proc() {
             ray.DrawTexture(pause_icon, (grid_rect.x + grid_rect.w - pause_icon.width)/2, (grid_rect.y + grid_rect.h - pause_icon.height)/2, {255, 255, 255, 150})
         }
 
-        draw_state_info(app_state, grid, inv_temperature)
+        draw_state_info(app_state, grid, inv_temperature) // Doesn't do anything right now
         draw_grid_dims(app_state, grid)
 
         ray.DrawFPS(5, 5)
@@ -183,7 +183,8 @@ get_grid_dims_string :: proc(grid: Grid) -> (s: string) {
 draw_grid_dims :: proc(state: AppState, grid: Grid) {
     dims_str : cstring = strings.clone_to_cstring(get_grid_dims_string(grid)); defer delete(dims_str)
     offset_x : i32 = ray.MeasureText(dims_str, 24)/2
-    ray.DrawText(dims_str, (state.window_width)/2 - offset_x, state.window_height - 48, 24, ray.BLACK)
+    ray.DrawRectangle((state.window_width)/2 - offset_x - 10, 48 - 10, offset_x*2 + 20, 24 + 20, {0, 0, 0, 210})
+    ray.DrawText(dims_str, (state.window_width)/2 - offset_x, 48, 24, ray.RAYWHITE)
 }
 
 draw_state_info :: proc(state: AppState, grid: Grid, inv_temperature: f32) {
