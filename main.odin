@@ -1,8 +1,10 @@
 package ising
 
 import fmt "core:fmt"
+import math "core:math"
 import rand "core:math/rand"
 import ray "vendor:raylib"
+import mu "vendor:microui"
 
 WINDOW_WIDTH :: 1280
 WINDOW_HEIGHT :: 720
@@ -10,7 +12,7 @@ WINDOW_HEIGHT :: 720
 Grid :: struct {
     rows : i32,
     cols : i32,
-    configuration : []i32
+    front_buffer : []i32
 }
 
 Rect :: struct {
@@ -31,7 +33,7 @@ main :: proc() {
 
     app_state : AppState = {
         is_running = true,
-        is_paused = false,
+        is_paused = true,
         window_width = WINDOW_WIDTH,
         window_height = WINDOW_HEIGHT
     }
@@ -39,17 +41,19 @@ main :: proc() {
     ray_flags : ray.ConfigFlags = {.VSYNC_HINT, .WINDOW_RESIZABLE, .WINDOW_HIGHDPI}
     ray.SetConfigFlags(ray_flags)
     ray.InitWindow(app_state.window_width, app_state.window_height, "Ising Model Visualiser")
-    ray.SetWindowMinSize(320, 320)
-    ray.SetTargetFPS(60)
+    ray.SetWindowMinSize(600, 600)
+    ray.SetTargetFPS(30)
 
     pause_icon := ray.LoadTexture("assets/pause.png"); defer ray.UnloadTexture(pause_icon)
     ray.SetTextureFilter(pause_icon, ray.TextureFilter.POINT)
 
 
-    grid := grid_create(32, 32); defer grid_destroy(grid)
+    grid := grid_create(512, 512); defer grid_destroy(grid)
 
     font := ray.GetFontDefault()
     ray.SetTextureFilter(font.texture, ray.TextureFilter.POINT)
+
+    inv_temperature : f32 = 1.0
 
     for app_state.is_running {
 
@@ -66,7 +70,7 @@ main :: proc() {
         }
 
         if !app_state.is_paused {
-            grid_update(grid)
+            grid_update_metropolis(grid, inv_temperature) // T=2.269 is Critical temperature? hotter means more activity
         }
 
         grid_rect : Rect = {
@@ -94,17 +98,19 @@ grid_create :: proc(c, r: i32) -> (grid: Grid) {
     using grid
     rows = r
     cols = c
-    configuration = make([]i32, r * c)
+    s: i32
+    front_buffer = make([]i32, r * c)
     for i in 0..=cols-1 {
         for j in 0..=rows-1 {
-            configuration[i*rows + j] = rand.choice([]i32{0, 1})
+            s = rand.choice([]i32{-1, 1})
+            front_buffer[i*rows + j] = s
         }
     }
     return grid
 }
 
 grid_destroy :: proc(grid: Grid) {
-    delete(grid.configuration)
+    delete(grid.front_buffer)
 }
 
 grid_draw :: proc(using grid: Grid, target_rect: Rect, padding: i32) {
@@ -116,24 +122,37 @@ grid_draw :: proc(using grid: Grid, target_rect: Rect, padding: i32) {
     grid_width := cell_size * cols
     grid_height := cell_size * rows
 
-    x_offset := (target_rect.w - grid_width) / 2
-    y_offset := (target_rect.h - grid_height) / 2
+    x_offset := target_rect.x + (target_rect.w - grid_width) / 2
+    y_offset := target_rect.y + (target_rect.h - grid_height) / 2
 
     col : ray.Color
     ray.DrawRectangle(target_rect.x, target_rect.y, target_rect.w, target_rect.h, ray.RAYWHITE)
     for i in 0..=cols-1 {
         for j in 0..=rows-1 {
-            col = configuration[i*rows + j] == 1 ? ray.RED : ray.DARKBLUE
+            col = front_buffer[i*rows + j] > 0 ? ray.RED : ray.DARKBLUE
             ray.DrawRectangle(x_offset + cell_size*i, y_offset + cell_size*j, cell_size, cell_size, col)
         }
     }
 }
 
-grid_update :: proc(grid: Grid) {
+grid_update_metropolis :: proc(grid: Grid, inv_temperature: f32) {
     using grid
-    for i in 0..=cols-1 {
-        for j in 0..=rows-1 {
-            configuration[i*rows + j] = rand.choice([]i32{0, 1})
+    p, q : i32
+    i, j : i32
+    spin, neighbour_sum, cost : i32
+    for _ in 1..=len(front_buffer)-1 {
+        p = i32(rand.float32() * f32(rows))
+        q = i32(rand.float32() * f32(cols))  
+        i = p + rows
+        j = q + cols      
+        spin = front_buffer[(p%cols)*rows + (q%rows)]
+        neighbour_sum = front_buffer[(i%cols)*rows + (j-1)%rows] + front_buffer[(i%cols)*rows + (j+1)%rows] + front_buffer[((i-1)%cols)*rows + j%rows] + front_buffer[((i+1)%cols)*rows + j%rows]
+        cost = 2*spin*neighbour_sum
+        if (cost < 0) {
+            front_buffer[(p%cols)*rows + (q%rows)] *= -1
+        }
+        else if rand.float32() < math.exp(f32(-cost)*inv_temperature){
+            front_buffer[(p%cols)*rows + (q%rows)] *= -1
         }
     }
 }
