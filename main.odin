@@ -47,7 +47,7 @@ main :: proc() {
     ray.SetConfigFlags(ray_flags)
     ray.InitWindow(app_state.window_width, app_state.window_height, "Ising Model Visualiser")
     ray.SetWindowMinSize(600, 600)
-    ray.SetTargetFPS(60)
+    ray.SetTargetFPS(600)
 
     pause_icon := ray.LoadTexture("assets/pause.png"); defer ray.UnloadTexture(pause_icon)
     ray.SetTextureFilter(pause_icon, ray.TextureFilter.POINT)
